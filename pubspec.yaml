@@ -1,0 +1,23 @@
+name: capstone
+description: "A new Flutter project."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: '>=3.2.1 <4.0.0'
+
+dependencies:
+  file_picker: ^6.1.1
+  flutter:
+    sdk: flutter
+  image_picker: ^1.0.7
+  image_size_getter: ^2.1.2
+  stroke_text: ^0.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true
