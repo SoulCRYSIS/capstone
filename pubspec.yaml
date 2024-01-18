@@ -10,9 +10,11 @@ dependencies:
   file_picker: ^6.1.1
   flutter:
     sdk: flutter
+  image_downloader_web: ^2.0.4
   image_picker: ^1.0.7
   image_size_getter: ^2.1.2
   stroke_text: ^0.0.2
+  widgets_to_image: ^0.0.2
 
 dev_dependencies:
   flutter_test:
