@@ -7,6 +7,8 @@ environment:
   sdk: '>=3.2.1 <4.0.0'
 
 dependencies:
+  arkit_plugin: ^1.0.7
+  csv: ^5.1.1
   file_picker: ^6.1.1
   flutter:
     sdk: flutter

@@ -22,6 +22,9 @@ class _ImportImageState extends State<ImportImage> {
   double? refLength;
   bool isSaving = false;
   double zoom = 1;
+  List<List<double>>? depthData;
+  bool showDepth = false;
+  double imageToDepthRatio = 1;
 
   final GlobalKey stackKey = GlobalKey();
   final captureController = WidgetsToImageController();
@@ -29,6 +32,12 @@ class _ImportImageState extends State<ImportImage> {
 
   double distancePixel(Offset p1, Offset p2) {
     return sqrt(pow(p1.dx - p2.dx, 2) + pow(p1.dy - p2.dy, 2));
+  }
+
+  double distanceAtPoint(Offset p) {
+    final x = p.dx / imageToDepthRatio;
+    final y = p.dy / imageToDepthRatio;
+    return depthData![y.round()][x.round()];
   }
 
   double distance(Offset p1, Offset p2) {
@@ -59,77 +68,53 @@ class _ImportImageState extends State<ImportImage> {
                     },
                     child: WidgetsToImage(
                       controller: captureController,
-                      child: Stack(
-                        key: stackKey,
-                        children: [
-                          image!,
-                          CustomPaint(
-                            painter: Line(
-                              refPoint1,
-                              refPoint2,
+                      child: LayoutBuilder(builder: (context, constraints) {
+                        if (depthData != null) {
+                          imageToDepthRatio =
+                              constraints.maxHeight / depthData!.length;
+                        }
+
+                        return Stack(
+                          key: stackKey,
+                          children: [
+                            image!,
+                            if (depthData != null && showDepth)
+                              DepthImage(
+                                depthData!,
+                                imageToDepthRatio,
+                              ),
+                            CustomPaint(
+                              painter: Line(
+                                refPoint1,
+                                refPoint2,
+                              ),
                             ),
-                          ),
-                          CustomPaint(
-                            painter: Lines(points),
-                          ),
-                          Positioned(
-                            left: refPoint1.dx - 5,
-                            top: refPoint1.dy - 5,
-                            child: Draggable(
-                              feedback: const CirclePoint(),
-                              onDragEnd: (dragDetails) {
-                                RenderBox box = stackKey.currentContext!
-                                    .findRenderObject() as RenderBox;
-                                Offset localOffset =
-                                    box.globalToLocal(dragDetails.offset);
-                                setState(() {
-                                  refPoint1 =
-                                      localOffset + const Offset(5, 5) / zoom;
-                                });
-                              },
-                              child: const CirclePoint(),
+                            CustomPaint(
+                              painter: Lines(points),
                             ),
-                          ),
-                          Positioned(
-                            left: refPoint2.dx - 5,
-                            top: refPoint2.dy - 5,
-                            child: Draggable(
-                              feedback: const CirclePoint(),
-                              onDragEnd: (dragDetails) {
-                                RenderBox box = stackKey.currentContext!
-                                    .findRenderObject() as RenderBox;
-                                Offset localOffset =
-                                    box.globalToLocal(dragDetails.offset);
-                                setState(() {
-                                  refPoint2 =
-                                      localOffset + const Offset(5, 5) / zoom;
-                                });
-                              },
-                              child: const CirclePoint(),
-                            ),
-                          ),
-                          Positioned(
-                            left: refPoint1.dx,
-                            top: refPoint1.dy,
-                            child: Transform.rotate(
-                              alignment: Alignment.topLeft,
-                              angle: atan2(refPoint2.dy - refPoint1.dy,
-                                  refPoint2.dx - refPoint1.dx),
-                              child: Container(
-                                alignment: Alignment.center,
-                                width: distancePixel(refPoint1, refPoint2),
+                            if (depthData != null)
+                              Positioned(
+                                left: refPoint1.dx - 10,
+                                top: refPoint1.dy - 10,
                                 child: StrokeText(
                                   strokeWidth: 2,
-                                  text: distance(refPoint1, refPoint2)
-                                      .toStringAsFixed(1),
+                                  text:
+                                      '${distanceAtPoint(refPoint1).toStringAsFixed(3)} m',
                                 ),
                               ),
-                            ),
-                          ),
-                          for (List<Offset> point in points) ...[
+                            if (depthData != null)
+                              Positioned(
+                                left: refPoint2.dx,
+                                top: refPoint2.dy,
+                                child: StrokeText(
+                                  strokeWidth: 2,
+                                  text:
+                                      '${distanceAtPoint(refPoint2).toStringAsFixed(3)} m',
+                                ),
+                              ),
                             Positioned(
-                              left: point[0].dx - 5,
-                              top: point[0].dy - 5,
+                              left: refPoint1.dx - 5,
+                              top: refPoint1.dy - 5,
                               child: Draggable(
                                 feedback: const CirclePoint(),
                                 onDragEnd: (dragDetails) {
@@ -138,7 +123,7 @@ class _ImportImageState extends State<ImportImage> {
                                   Offset localOffset =
                                       box.globalToLocal(dragDetails.offset);
                                   setState(() {
-                                    point[0] =
+                                    refPoint1 =
                                         localOffset + const Offset(5, 5) / zoom;
                                   });
                                 },
@@ -146,8 +131,8 @@ class _ImportImageState extends State<ImportImage> {
                               ),
                             ),
                             Positioned(
-                              left: point[1].dx - 5,
-                              top: point[1].dy - 5,
+                              left: refPoint2.dx - 5,
+                              top: refPoint2.dy - 5,
                               child: Draggable(
                                 feedback: const CirclePoint(),
                                 onDragEnd: (dragDetails) {
@@ -156,7 +141,7 @@ class _ImportImageState extends State<ImportImage> {
                                   Offset localOffset =
                                       box.globalToLocal(dragDetails.offset);
                                   setState(() {
-                                    point[1] =
+                                    refPoint2 =
                                         localOffset + const Offset(5, 5) / zoom;
                                   });
                                 },
@@ -164,26 +149,82 @@ class _ImportImageState extends State<ImportImage> {
                               ),
                             ),
                             Positioned(
-                              left: point[0].dx,
-                              top: point[0].dy,
+                              left: refPoint1.dx,
+                              top: refPoint1.dy,
                               child: Transform.rotate(
                                 alignment: Alignment.topLeft,
-                                angle: atan2(point[1].dy - point[0].dy,
-                                    point[1].dx - point[0].dx),
+                                angle: atan2(refPoint2.dy - refPoint1.dy,
+                                    refPoint2.dx - refPoint1.dx),
                                 child: Container(
                                   alignment: Alignment.center,
-                                  width: distancePixel(point[0], point[1]),
+                                  width: distancePixel(refPoint1, refPoint2),
                                   child: StrokeText(
                                     strokeWidth: 2,
-                                    text: distance(point[0], point[1])
+                                    text: distance(refPoint1, refPoint2)
                                         .toStringAsFixed(1),
                                   ),
                                 ),
                               ),
                             ),
-                          ]
-                        ],
-                      ),
+                            for (List<Offset> point in points) ...[
+                              Positioned(
+                                left: point[0].dx - 5,
+                                top: point[0].dy - 5,
+                                child: Draggable(
+                                  feedback: const CirclePoint(),
+                                  onDragEnd: (dragDetails) {
+                                    RenderBox box = stackKey.currentContext!
+                                        .findRenderObject() as RenderBox;
+                                    Offset localOffset =
+                                        box.globalToLocal(dragDetails.offset);
+                                    setState(() {
+                                      point[0] = localOffset +
+                                          const Offset(5, 5) / zoom;
+                                    });
+                                  },
+                                  child: const CirclePoint(),
+                                ),
+                              ),
+                              Positioned(
+                                left: point[1].dx - 5,
+                                top: point[1].dy - 5,
+                                child: Draggable(
+                                  feedback: const CirclePoint(),
+                                  onDragEnd: (dragDetails) {
+                                    RenderBox box = stackKey.currentContext!
+                                        .findRenderObject() as RenderBox;
+                                    Offset localOffset =
+                                        box.globalToLocal(dragDetails.offset);
+                                    setState(() {
+                                      point[1] = localOffset +
+                                          const Offset(5, 5) / zoom;
+                                    });
+                                  },
+                                  child: const CirclePoint(),
+                                ),
+                              ),
+                              Positioned(
+                                left: point[0].dx,
+                                top: point[0].dy,
+                                child: Transform.rotate(
+                                  alignment: Alignment.topLeft,
+                                  angle: atan2(point[1].dy - point[0].dy,
+                                      point[1].dx - point[0].dx),
+                                  child: Container(
+                                    alignment: Alignment.center,
+                                    width: distancePixel(point[0], point[1]),
+                                    child: StrokeText(
+                                      strokeWidth: 2,
+                                      text: distance(point[0], point[1])
+                                          .toStringAsFixed(1),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ]
+                          ],
+                        );
+                      }),
                     ),
                   ),
           )),
@@ -194,11 +235,53 @@ class _ImportImageState extends State<ImportImage> {
             child: Column(
               children: [
                 ImagePicker(
-                  onPicked: (Image file) {
+                  onPicked: (Image file, double height) {
                     setState(() {
                       image = file;
                     });
                   },
+                ),
+                verticalSpace,
+                ElevatedButton(
+                  onPressed: () async {
+                    FilePickerResult? result =
+                        await FilePicker.platform.pickFiles(
+                      allowMultiple: false,
+                      type: FileType.custom,
+                      allowedExtensions: ['csv'],
+                    );
+
+                    if (result != null) {
+                      PlatformFile file = result.files.first;
+
+                      final input = file.bytes;
+                      final contents = String.fromCharCodes(input!);
+
+                      List<String> rows = contents.split('\n');
+                      List<List<double>> array = rows
+                          .map((row) => row
+                              .split(',')
+                              .map((e) => double.parse(e))
+                              .toList())
+                          .toList();
+
+                      setState(() {
+                        depthData = array;
+                      });
+                    }
+                  },
+                  child: const Text('Pick CSV'),
+                ),
+                verticalSpace,
+                Row(
+                  children: [
+                    const Text('Show depth'),
+                    Checkbox(
+                        value: showDepth,
+                        onChanged: (value) => setState(() {
+                              showDepth = value!;
+                            })),
+                  ],
                 ),
                 verticalSpace,
                 TextField(
@@ -377,7 +460,7 @@ class ImagePicker extends StatelessWidget {
     Key? key,
   }) : super(key: key);
 
-  final void Function(Image file) onPicked;
+  final void Function(Image file, double height) onPicked;
 
   @override
   Widget build(BuildContext context) {
@@ -391,10 +474,73 @@ class ImagePicker extends StatelessWidget {
           if (result == null) {
             return;
           }
-          onPicked(Image.memory(result.files.first.bytes!));
+          final ImageProvider imageProvider =
+              MemoryImage(result.files.first.bytes!);
+          final ImageStream imageStream =
+              imageProvider.resolve(ImageConfiguration.empty);
+          imageStream.addListener(
+            ImageStreamListener(
+              (ImageInfo image, bool synchronousCall) {
+                onPicked(
+                  Image(image: imageProvider),
+                  image.image.height.toDouble(),
+                );
+              },
+            ),
+          );
         },
         child: const Text('Pick image'),
       ),
+    );
+  }
+}
+
+class HeatMapPainter extends CustomPainter {
+  final List<List<double>> data;
+  final double cellSize;
+  late final double maxValue;
+  late final double minValue;
+  late final double range;
+
+  HeatMapPainter({required this.data, this.cellSize = 1}) {
+    maxValue = data.expand((row) => row).reduce(max);
+    minValue = data.expand((row) => row).reduce(min);
+    range = maxValue - minValue;
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (int i = 0; i < data.length; i++) {
+      for (int j = 0; j < data[i].length; j++) {
+        final paint = Paint()
+          ..color = _getColorFromValue((data[i][j] - minValue) / range);
+        final rect =
+            Rect.fromLTWH(j * cellSize, i * cellSize, cellSize, cellSize);
+        canvas.drawRect(rect, paint);
+      }
+    }
+  }
+
+  Color _getColorFromValue(double value) {
+    var h = (1.0 - value) * 360;
+    return HSLColor.fromAHSL(0.8, h, 1, 0.5).toColor();
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
+}
+
+class DepthImage extends StatelessWidget {
+  final List<List<double>> data;
+  final double cellSize;
+
+  const DepthImage(this.data, this.cellSize, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      // assuming all rows have equal length
+      painter: HeatMapPainter(data: data, cellSize: cellSize),
     );
   }
 }
