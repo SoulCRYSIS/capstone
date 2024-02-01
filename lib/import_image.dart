@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_downloader_web/image_downloader_web.dart';
+import 'package:image_size_getter/image_size_getter.dart' as image_size_getter;
 import 'package:stroke_text/stroke_text.dart';
 import 'package:widgets_to_image/widgets_to_image.dart';
 
@@ -15,7 +16,7 @@ class ImportImage extends StatefulWidget {
 }
 
 class _ImportImageState extends State<ImportImage> {
-  Image? image;
+  Uint8List? image;
   List<List<Offset>> points = [];
   Offset refPoint1 = const Offset(100, 50);
   Offset refPoint2 = const Offset(150, 100);
@@ -25,8 +26,13 @@ class _ImportImageState extends State<ImportImage> {
   List<List<double>>? depthData;
   bool showDepth = false;
   double imageToDepthRatio = 1;
+  double hFov = 90;
+  double vFov = 90;
+  double? width;
+  double? height;
 
   final GlobalKey stackKey = GlobalKey();
+  final GlobalKey imageKey = GlobalKey();
   final captureController = WidgetsToImageController();
   final transformationController = TransformationController();
 
@@ -35,9 +41,42 @@ class _ImportImageState extends State<ImportImage> {
   }
 
   double distanceAtPoint(Offset p) {
-    final x = p.dx / imageToDepthRatio;
-    final y = p.dy / imageToDepthRatio;
+    final x = min(depthData!.first.length - 1, p.dx / imageToDepthRatio);
+    final y = min(depthData!.length - 1, p.dy / imageToDepthRatio);
     return depthData![y.round()][x.round()];
+  }
+
+  double get centerX => width! / 2;
+  double get centerY => height! / 2;
+
+  /// in radians
+  double angleBetweenTwoPoints(Offset p1, Offset p2) {
+    final hFovRadian = hFov * pi / 180;
+    final vFovRadian = vFov * pi / 180;
+
+    final p1HAngle = (p1.dx - centerX) * hFovRadian / width!;
+    final p1VAngle = (p1.dy - centerY) * vFovRadian / height!;
+    final p2HAngle = (p2.dx - centerX) * hFovRadian / width!;
+    final p2VAngle = (p2.dy - centerY) * vFovRadian / height!;
+
+    return acos(
+      cos(p1HAngle) * cos(p2HAngle) * cos(p1VAngle - p2VAngle) +
+          sin(p1HAngle) * sin(p2HAngle),
+    );
+  }
+
+  /// in meters
+  double distanceLidar(Offset p1, Offset p2) {
+    final angle = angleBetweenTwoPoints(p1, p2);
+
+    final p1Distance = distanceAtPoint(p1);
+    final p2Distance = distanceAtPoint(p2);
+
+    final distance = sqrt(pow(p1Distance, 2) +
+        pow(p2Distance, 2) -
+        2 * p1Distance * p2Distance * cos(angle));
+
+    return distance;
   }
 
   double distance(Offset p1, Offset p2) {
@@ -67,17 +106,26 @@ class _ImportImageState extends State<ImportImage> {
                       });
                     },
                     child: WidgetsToImage(
-                      controller: captureController,
-                      child: LayoutBuilder(builder: (context, constraints) {
-                        if (depthData != null) {
-                          imageToDepthRatio =
-                              constraints.maxHeight / depthData!.length;
-                        }
-
-                        return Stack(
+                        controller: captureController,
+                        child: Stack(
                           key: stackKey,
                           children: [
-                            image!,
+                            LayoutBuilder(builder: (context, constraints) {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                final imageSize =
+                                    imageKey.currentContext!.size!;
+                                setState(() {
+                                  imageToDepthRatio =
+                                      imageSize.height / depthData!.length;
+                                  width = imageSize.width;
+                                  height = imageSize.height;
+                                });
+                              });
+                              return Image.memory(
+                                key: imageKey,
+                                image!,
+                              );
+                            }),
                             if (depthData != null && showDepth)
                               DepthImage(
                                 depthData!,
@@ -122,9 +170,15 @@ class _ImportImageState extends State<ImportImage> {
                                       .findRenderObject() as RenderBox;
                                   Offset localOffset =
                                       box.globalToLocal(dragDetails.offset);
+                                  final imageSize =
+                                      imageKey.currentContext!.size!;
                                   setState(() {
-                                    refPoint1 =
-                                        localOffset + const Offset(5, 5) / zoom;
+                                    var newPoint = (localOffset +
+                                        const Offset(5, 5) / zoom);
+                                    refPoint1 = Offset(
+                                        newPoint.dx.clamp(0.0, imageSize.width),
+                                        newPoint.dy
+                                            .clamp(0.0, imageSize.height));
                                   });
                                 },
                                 child: const CirclePoint(),
@@ -140,9 +194,17 @@ class _ImportImageState extends State<ImportImage> {
                                       .findRenderObject() as RenderBox;
                                   Offset localOffset =
                                       box.globalToLocal(dragDetails.offset);
+
+                                  final imageSize =
+                                      imageKey.currentContext!.size!;
+
                                   setState(() {
-                                    refPoint2 =
-                                        localOffset + const Offset(5, 5) / zoom;
+                                    var newPoint = (localOffset +
+                                        const Offset(5, 5) / zoom);
+                                    refPoint2 = Offset(
+                                        newPoint.dx.clamp(0.0, imageSize.width),
+                                        newPoint.dy
+                                            .clamp(0.0, imageSize.height));
                                   });
                                 },
                                 child: const CirclePoint(),
@@ -160,8 +222,10 @@ class _ImportImageState extends State<ImportImage> {
                                   width: distancePixel(refPoint1, refPoint2),
                                   child: StrokeText(
                                     strokeWidth: 2,
-                                    text: distance(refPoint1, refPoint2)
-                                        .toStringAsFixed(1),
+                                    text: depthData == null || width == null
+                                        ? distance(refPoint1, refPoint2)
+                                            .toStringAsFixed(1)
+                                        : '${distanceLidar(refPoint1, refPoint2).toStringAsFixed(3)} m (${(angleBetweenTwoPoints(refPoint1, refPoint2) * 180 / pi).toStringAsFixed(1)})',
                                   ),
                                 ),
                               ),
@@ -177,9 +241,16 @@ class _ImportImageState extends State<ImportImage> {
                                         .findRenderObject() as RenderBox;
                                     Offset localOffset =
                                         box.globalToLocal(dragDetails.offset);
+                                    final imageSize =
+                                        imageKey.currentContext!.size!;
                                     setState(() {
-                                      point[0] = localOffset +
-                                          const Offset(5, 5) / zoom;
+                                      var newPoint = (localOffset +
+                                          const Offset(5, 5) / zoom);
+                                      point[0] = Offset(
+                                          newPoint.dx
+                                              .clamp(0.0, imageSize.width),
+                                          newPoint.dy
+                                              .clamp(0.0, imageSize.height));
                                     });
                                   },
                                   child: const CirclePoint(),
@@ -196,8 +267,15 @@ class _ImportImageState extends State<ImportImage> {
                                     Offset localOffset =
                                         box.globalToLocal(dragDetails.offset);
                                     setState(() {
-                                      point[1] = localOffset +
-                                          const Offset(5, 5) / zoom;
+                                      var newPoint = (localOffset +
+                                          const Offset(5, 5) / zoom);
+                                      final imageSize =
+                                          imageKey.currentContext!.size!;
+                                      point[1] = Offset(
+                                          newPoint.dx
+                                              .clamp(0.0, imageSize.width),
+                                          newPoint.dy
+                                              .clamp(0.0, imageSize.height));
                                     });
                                   },
                                   child: const CirclePoint(),
@@ -215,27 +293,27 @@ class _ImportImageState extends State<ImportImage> {
                                     width: distancePixel(point[0], point[1]),
                                     child: StrokeText(
                                       strokeWidth: 2,
-                                      text: distance(point[0], point[1])
-                                          .toStringAsFixed(1),
+                                      text: depthData == null || width == null
+                                          ? distance(point[0], point[1])
+                                              .toStringAsFixed(1)
+                                          : '${distanceLidar(point[0], point[1]).toStringAsFixed(3)} m (${(angleBetweenTwoPoints(point[0], point[1]) * 180 / pi).toStringAsFixed(1)})',
                                     ),
                                   ),
                                 ),
                               ),
                             ]
                           ],
-                        );
-                      }),
-                    ),
+                        )),
                   ),
           )),
           const VerticalDivider(),
           Container(
-            width: 200,
+            width: 300,
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
                 ImagePicker(
-                  onPicked: (Image file, double height) {
+                  onPicked: (file, w, h) {
                     setState(() {
                       image = file;
                     });
@@ -284,11 +362,43 @@ class _ImportImageState extends State<ImportImage> {
                   ],
                 ),
                 verticalSpace,
+                TextFormField(
+                  initialValue: '90',
+                  decoration: const InputDecoration(
+                    labelText: 'Horizontal FOV',
+                  ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r"[0-9.]"))
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      hFov = double.tryParse(value) ?? 90;
+                    });
+                  },
+                ),
+                verticalSpace,
+                TextFormField(
+                  initialValue: '90',
+                  decoration: const InputDecoration(
+                    labelText: 'Vertical FOV',
+                  ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r"[0-9.]"))
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      vFov = double.tryParse(value) ?? 90;
+                    });
+                  },
+                ),
+                verticalSpace,
                 TextField(
                   decoration: const InputDecoration(
                     labelText: 'Reference length',
                   ),
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r"[0-9.]"))
+                  ],
                   onChanged: (value) {
                     setState(() {
                       refLength = double.tryParse(value);
@@ -329,7 +439,21 @@ class _ImportImageState extends State<ImportImage> {
                     ),
                     Expanded(
                       child: Text(
-                        'Real',
+                        'w/o LiDAR',
+                        textAlign: TextAlign.end,
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        'LiDAR',
+                        textAlign: TextAlign.end,
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        'Angle',
                         textAlign: TextAlign.end,
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
@@ -337,10 +461,14 @@ class _ImportImageState extends State<ImportImage> {
                     SizedBox(width: 40),
                   ],
                 ),
-                Column(
-                  children: points
-                      .map(
-                        (e) => Row(
+                if (image != null)
+                  Column(
+                    children: [
+                      [refPoint1, refPoint2],
+                      ...points
+                    ].map(
+                      (e) {
+                        return Row(
                           children: [
                             Expanded(
                               child: Text(
@@ -354,6 +482,26 @@ class _ImportImageState extends State<ImportImage> {
                                 textAlign: TextAlign.end,
                               ),
                             ),
+                            depthData == null || width == null
+                                ? const Spacer()
+                                : Expanded(
+                                    child: Text(
+                                      distanceLidar(e[0], e[1])
+                                          .toStringAsFixed(3),
+                                      textAlign: TextAlign.end,
+                                    ),
+                                  ),
+                            depthData == null || width == null
+                                ? const Spacer()
+                                : Expanded(
+                                    child: Text(
+                                      (angleBetweenTwoPoints(e[0], e[1]) *
+                                              180 /
+                                              pi)
+                                          .toStringAsFixed(1),
+                                      textAlign: TextAlign.end,
+                                    ),
+                                  ),
                             IconButton(
                               onPressed: () => setState(() {
                                 points.remove(e);
@@ -361,10 +509,10 @@ class _ImportImageState extends State<ImportImage> {
                               icon: const Icon(Icons.delete),
                             )
                           ],
-                        ),
-                      )
-                      .toList(),
-                ),
+                        );
+                      },
+                    ).toList(),
+                  ),
                 verticalSpace,
                 ElevatedButton(
                   onPressed: () {
@@ -460,7 +608,7 @@ class ImagePicker extends StatelessWidget {
     Key? key,
   }) : super(key: key);
 
-  final void Function(Image file, double height) onPicked;
+  final void Function(Uint8List file, int width, int height) onPicked;
 
   @override
   Widget build(BuildContext context) {
@@ -474,19 +622,16 @@ class ImagePicker extends StatelessWidget {
           if (result == null) {
             return;
           }
-          final ImageProvider imageProvider =
-              MemoryImage(result.files.first.bytes!);
-          final ImageStream imageStream =
-              imageProvider.resolve(ImageConfiguration.empty);
-          imageStream.addListener(
-            ImageStreamListener(
-              (ImageInfo image, bool synchronousCall) {
-                onPicked(
-                  Image(image: imageProvider),
-                  image.image.height.toDouble(),
-                );
-              },
-            ),
+
+          Uint8List bytes = result.files.first.bytes!;
+
+          final size = image_size_getter.ImageSizeGetter.getSize(
+              image_size_getter.MemoryInput(bytes));
+
+          onPicked(
+            bytes,
+            size.width,
+            size.height,
           );
         },
         child: const Text('Pick image'),
