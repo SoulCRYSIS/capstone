@@ -105,6 +105,7 @@ class _ImportImageState extends State<ImportImage> {
                             transformationController.value.getMaxScaleOnAxis();
                       });
                     },
+                    maxScale: 20,
                     child: WidgetsToImage(
                         controller: captureController,
                         child: Stack(
@@ -231,6 +232,26 @@ class _ImportImageState extends State<ImportImage> {
                               ),
                             ),
                             for (List<Offset> point in points) ...[
+                              if (depthData != null)
+                                Positioned(
+                                  left: point[0].dx - 10,
+                                  top: point[0].dy - 10,
+                                  child: StrokeText(
+                                    strokeWidth: 2,
+                                    text:
+                                        '${distanceAtPoint(point[0]).toStringAsFixed(3)} m',
+                                  ),
+                                ),
+                              if (depthData != null)
+                                Positioned(
+                                  left: point[1].dx,
+                                  top: point[1].dy,
+                                  child: StrokeText(
+                                    strokeWidth: 2,
+                                    text:
+                                        '${distanceAtPoint(point[1]).toStringAsFixed(3)} m',
+                                  ),
+                                ),
                               Positioned(
                                 left: point[0].dx - 5,
                                 top: point[0].dy - 5,
