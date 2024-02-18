@@ -26,8 +26,18 @@ class _ImportImageState extends State<ImportImage> {
   List<List<double>>? depthData;
   bool showDepth = false;
   double imageToDepthRatio = 1;
-  double hFov = 90;
-  double vFov = 90;
+
+  final hFovController = TextEditingController(text: "90");
+  final vFovController = TextEditingController(text: "54");
+
+  double get hFov => double.parse(hFovController.text);
+  double get vFov => double.parse(vFovController.text);
+
+  set hFov(double value) => hFovController.text = value.toStringAsFixed(2);
+  set vFov(double value) => vFovController.text = value.toStringAsFixed(2);
+
+  static const fovRatio = 5 / 3;
+
   double? width;
   double? height;
 
@@ -65,6 +75,13 @@ class _ImportImageState extends State<ImportImage> {
     );
   }
 
+  double angleWhenKnowDistance(Offset p1, Offset p2, double d) {
+    final p1Distance = distanceAtPoint(p1);
+    final p2Distance = distanceAtPoint(p2);
+    return acos((p1Distance * p1Distance + p2Distance * p2Distance - d * d) /
+        (2 * p1Distance * p2Distance));
+  }
+
   /// in meters
   double distanceLidar(Offset p1, Offset p2) {
     final angle = angleBetweenTwoPoints(p1, p2);
@@ -86,6 +103,35 @@ class _ImportImageState extends State<ImportImage> {
     return distancePixel(p1, p2) *
         refLength! /
         distancePixel(refPoint1, refPoint2);
+  }
+
+  Future<void> solveFov() async {
+    final realAngle = angleWhenKnowDistance(refPoint1, refPoint2, refLength!);
+    if (realAngle.isNaN) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              "Impossible Triangle (${distanceAtPoint(refPoint1)}, ${distanceAtPoint(refPoint2)}, $refLength)"),
+        ),
+      );
+      return;
+    }
+    final calculatedAngle = angleBetweenTwoPoints(
+      refPoint1,
+      refPoint2,
+    );
+    var error = (realAngle - calculatedAngle) * 180 / pi;
+
+    while (error.abs() > 0.01) {
+      await Future.delayed(const Duration(milliseconds: 50));
+      final calculatedAngle = angleBetweenTwoPoints(
+        refPoint1,
+        refPoint2,
+      );
+      error = (realAngle - calculatedAngle) * 180 / pi;
+      hFov += error;
+      vFov = hFov / fovRatio;
+    }
   }
 
   @override
@@ -148,7 +194,7 @@ class _ImportImageState extends State<ImportImage> {
                                 child: StrokeText(
                                   strokeWidth: 2,
                                   text:
-                                      '${distanceAtPoint(refPoint1).toStringAsFixed(3)} m',
+                                      '${(distanceAtPoint(refPoint1) * 100).toStringAsFixed(1)} cm',
                                 ),
                               ),
                             if (depthData != null)
@@ -158,7 +204,7 @@ class _ImportImageState extends State<ImportImage> {
                                 child: StrokeText(
                                   strokeWidth: 2,
                                   text:
-                                      '${distanceAtPoint(refPoint2).toStringAsFixed(3)} m',
+                                      '${(distanceAtPoint(refPoint2) * 100).toStringAsFixed(1)} cm',
                                 ),
                               ),
                             Positioned(
@@ -226,7 +272,7 @@ class _ImportImageState extends State<ImportImage> {
                                     text: depthData == null || width == null
                                         ? distance(refPoint1, refPoint2)
                                             .toStringAsFixed(1)
-                                        : '${distanceLidar(refPoint1, refPoint2).toStringAsFixed(3)} m (${(angleBetweenTwoPoints(refPoint1, refPoint2) * 180 / pi).toStringAsFixed(1)})',
+                                        : '${(distanceLidar(refPoint1, refPoint2) * 100).toStringAsFixed(1)} cm (${(angleBetweenTwoPoints(refPoint1, refPoint2) * 180 / pi).toStringAsFixed(1)}ํ)',
                                   ),
                                 ),
                               ),
@@ -239,7 +285,7 @@ class _ImportImageState extends State<ImportImage> {
                                   child: StrokeText(
                                     strokeWidth: 2,
                                     text:
-                                        '${distanceAtPoint(point[0]).toStringAsFixed(3)} m',
+                                        '${(distanceAtPoint(point[0]) * 100).toStringAsFixed(1)} cm',
                                   ),
                                 ),
                               if (depthData != null)
@@ -249,7 +295,7 @@ class _ImportImageState extends State<ImportImage> {
                                   child: StrokeText(
                                     strokeWidth: 2,
                                     text:
-                                        '${distanceAtPoint(point[1]).toStringAsFixed(3)} m',
+                                        '${(distanceAtPoint(point[1]) * 100).toStringAsFixed(1)} cm',
                                   ),
                                 ),
                               Positioned(
@@ -317,7 +363,7 @@ class _ImportImageState extends State<ImportImage> {
                                       text: depthData == null || width == null
                                           ? distance(point[0], point[1])
                                               .toStringAsFixed(1)
-                                          : '${distanceLidar(point[0], point[1]).toStringAsFixed(3)} m (${(angleBetweenTwoPoints(point[0], point[1]) * 180 / pi).toStringAsFixed(1)})',
+                                          : '${(distanceLidar(point[0], point[1]) * 100).toStringAsFixed(1)} cm (${(angleBetweenTwoPoints(point[0], point[1]) * 180 / pi).toStringAsFixed(1)}ํ)',
                                     ),
                                   ),
                                 ),
@@ -384,51 +430,43 @@ class _ImportImageState extends State<ImportImage> {
                 ),
                 verticalSpace,
                 TextFormField(
-                  initialValue: '90',
+                  controller: hFovController,
                   decoration: const InputDecoration(
                     labelText: 'Horizontal FOV',
                   ),
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(RegExp(r"[0-9.]"))
                   ],
-                  onChanged: (value) {
-                    setState(() {
-                      hFov = double.tryParse(value) ?? 90;
-                    });
-                  },
                 ),
                 verticalSpace,
                 TextFormField(
-                  initialValue: '90',
+                  controller: vFovController,
                   decoration: const InputDecoration(
                     labelText: 'Vertical FOV',
                   ),
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(RegExp(r"[0-9.]"))
                   ],
-                  onChanged: (value) {
-                    setState(() {
-                      vFov = double.tryParse(value) ?? 90;
-                    });
-                  },
                 ),
                 verticalSpace,
                 TextField(
                   decoration: const InputDecoration(
-                    labelText: 'Reference length',
+                    labelText: 'Reference length (cm)',
                   ),
                   inputFormatters: [
                     FilteringTextInputFormatter.allow(RegExp(r"[0-9.]"))
                   ],
                   onChanged: (value) {
-                    setState(() {
-                      refLength = double.tryParse(value);
-                    });
+                    if (double.tryParse(value) != null) {
+                      setState(() {
+                        refLength = double.tryParse(value)! / 100;
+                      });
+                    }
                   },
                 ),
                 verticalSpace,
-                Text(
-                    'Ref length: ${distancePixel(refPoint1, refPoint2).toStringAsFixed(1)} px'),
+                ElevatedButton(
+                    onPressed: solveFov, child: const Text("Solve For FOV")),
                 verticalSpace,
                 isSaving
                     ? const CircularProgressIndicator()
