@@ -123,7 +123,7 @@ class _ImportImageState extends State<ImportImage> {
     var error = (realAngle - calculatedAngle) * 180 / pi;
 
     while (error.abs() > 0.01) {
-      await Future.delayed(const Duration(milliseconds: 50));
+      await Future.delayed(const Duration(milliseconds: 20));
       final calculatedAngle = angleBetweenTwoPoints(
         refPoint1,
         refPoint2,
