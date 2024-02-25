@@ -24,6 +24,7 @@ class _ImportImageState extends State<ImportImage> {
   Offset refPoint2 = const Offset(150, 100);
   double? refLength;
   bool isSaving = false;
+  bool isAdding = false;
   double zoom = 1;
   List<List<double>>? depthData;
   bool showDepth = false;
@@ -160,22 +161,44 @@ class _ImportImageState extends State<ImportImage> {
                         child: Stack(
                           key: stackKey,
                           children: [
-                            LayoutBuilder(builder: (context, constraints) {
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                final imageSize =
-                                    imageKey.currentContext!.size!;
-                                setState(() {
-                                  imageToDepthRatio =
-                                      imageSize.height / depthData!.length;
-                                  width = imageSize.width;
-                                  height = imageSize.height;
-                                });
-                              });
-                              return Image.memory(
-                                key: imageKey,
-                                image!,
-                              );
-                            }),
+                            GestureDetector(
+                              onTapDown: (details) {
+                                if (!isAdding) {
+                                  return;
+                                }
+                                if (points.isEmpty || points.last.length == 2) {
+                                  setState(() {
+                                    points.add([
+                                      details.localPosition,
+                                    ]);
+                                  });
+                                } else {
+                                  setState(() {
+                                    points.last.add(details.localPosition);
+                                  });
+                                }
+                              },
+                              child: LayoutBuilder(
+                                  builder: (context, constraints) {
+                                if (depthData != null) {
+                                  WidgetsBinding.instance
+                                      .addPostFrameCallback((_) {
+                                    final imageSize =
+                                        imageKey.currentContext!.size!;
+                                    setState(() {
+                                      imageToDepthRatio =
+                                          imageSize.height / depthData!.length;
+                                      width = imageSize.width;
+                                      height = imageSize.height;
+                                    });
+                                  });
+                                }
+                                return Image.memory(
+                                  key: imageKey,
+                                  image!,
+                                );
+                              }),
+                            ),
                             if (depthData != null && showDepth)
                               Opacity(
                                 opacity: depthAlpha,
@@ -191,7 +214,8 @@ class _ImportImageState extends State<ImportImage> {
                               ),
                             ),
                             CustomPaint(
-                              painter: Lines(points),
+                              painter: Lines(
+                                  points.where((e) => e.length == 2).toList()),
                             ),
                             if (depthData != null)
                               Positioned(
@@ -294,7 +318,7 @@ class _ImportImageState extends State<ImportImage> {
                                         '${(distanceAtPoint(point[0]) * 100).toStringAsFixed(1)} cm',
                                   ),
                                 ),
-                              if (depthData != null)
+                              if (depthData != null && point.length == 2)
                                 Positioned(
                                   left: point[1].dx,
                                   top: point[1].dy,
@@ -329,51 +353,53 @@ class _ImportImageState extends State<ImportImage> {
                                   child: const CirclePoint(),
                                 ),
                               ),
-                              Positioned(
-                                left: point[1].dx - 5,
-                                top: point[1].dy - 5,
-                                child: Draggable(
-                                  feedback: const CirclePoint(),
-                                  onDragEnd: (dragDetails) {
-                                    RenderBox box = stackKey.currentContext!
-                                        .findRenderObject() as RenderBox;
-                                    Offset localOffset =
-                                        box.globalToLocal(dragDetails.offset);
-                                    setState(() {
-                                      var newPoint = (localOffset +
-                                          const Offset(5, 5) / zoom);
-                                      final imageSize =
-                                          imageKey.currentContext!.size!;
-                                      point[1] = Offset(
-                                          newPoint.dx
-                                              .clamp(0.0, imageSize.width),
-                                          newPoint.dy
-                                              .clamp(0.0, imageSize.height));
-                                    });
-                                  },
-                                  child: const CirclePoint(),
+                              if (point.length == 2)
+                                Positioned(
+                                  left: point[1].dx - 5,
+                                  top: point[1].dy - 5,
+                                  child: Draggable(
+                                    feedback: const CirclePoint(),
+                                    onDragEnd: (dragDetails) {
+                                      RenderBox box = stackKey.currentContext!
+                                          .findRenderObject() as RenderBox;
+                                      Offset localOffset =
+                                          box.globalToLocal(dragDetails.offset);
+                                      setState(() {
+                                        var newPoint = (localOffset +
+                                            const Offset(5, 5) / zoom);
+                                        final imageSize =
+                                            imageKey.currentContext!.size!;
+                                        point[1] = Offset(
+                                            newPoint.dx
+                                                .clamp(0.0, imageSize.width),
+                                            newPoint.dy
+                                                .clamp(0.0, imageSize.height));
+                                      });
+                                    },
+                                    child: const CirclePoint(),
+                                  ),
                                 ),
-                              ),
-                              Positioned(
-                                left: point[0].dx,
-                                top: point[0].dy,
-                                child: Transform.rotate(
-                                  alignment: Alignment.topLeft,
-                                  angle: atan2(point[1].dy - point[0].dy,
-                                      point[1].dx - point[0].dx),
-                                  child: Container(
-                                    alignment: Alignment.center,
-                                    width: distancePixel(point[0], point[1]),
-                                    child: StrokeText(
-                                      strokeWidth: 2,
-                                      text: depthData == null || width == null
-                                          ? distance(point[0], point[1])
-                                              .toStringAsFixed(1)
-                                          : '${(distanceLidar(point[0], point[1]) * 100).toStringAsFixed(1)} cm (${(angleBetweenTwoPoints(point[0], point[1]) * 180 / pi).toStringAsFixed(1)}ํ)',
+                              if (point.length == 2)
+                                Positioned(
+                                  left: point[0].dx,
+                                  top: point[0].dy,
+                                  child: Transform.rotate(
+                                    alignment: Alignment.topLeft,
+                                    angle: atan2(point[1].dy - point[0].dy,
+                                        point[1].dx - point[0].dx),
+                                    child: Container(
+                                      alignment: Alignment.center,
+                                      width: distancePixel(point[0], point[1]),
+                                      child: StrokeText(
+                                        strokeWidth: 2,
+                                        text: depthData == null || width == null
+                                            ? distance(point[0], point[1])
+                                                .toStringAsFixed(1)
+                                            : '${(distanceLidar(point[0], point[1]) * 100).toStringAsFixed(1)} cm (${(angleBetweenTwoPoints(point[0], point[1]) * 180 / pi).toStringAsFixed(1)}ํ)',
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
                             ]
                           ],
                         )),
@@ -541,7 +567,7 @@ class _ImportImageState extends State<ImportImage> {
                           children: [
                             [refPoint1, refPoint2],
                             ...points
-                          ].map(
+                          ].where((element) => element.length == 2).map(
                             (e) {
                               return Row(
                                 children: [
@@ -593,11 +619,10 @@ class _ImportImageState extends State<ImportImage> {
                       ElevatedButton(
                         onPressed: () {
                           setState(() {
-                            points.add(
-                                [const Offset(50, 50), const Offset(100, 100)]);
+                            isAdding = !isAdding;
                           });
                         },
-                        child: const Text('Add Line'),
+                        child: Text(isAdding ? 'Stop' : 'Add Line'),
                       ),
                     ],
                   ),
