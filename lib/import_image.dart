@@ -2,8 +2,10 @@ import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:image_downloader_web/image_downloader_web.dart';
 import 'package:image_size_getter/image_size_getter.dart' as image_size_getter;
 import 'package:stroke_text/stroke_text.dart';
@@ -422,176 +424,183 @@ class _ImportImageState extends State<ImportImage> {
                   child: const Text('Pick CSV'),
                 ),
                 verticalSpace,
-                Row(
-                  children: [
-                    const Text('Show depth'),
-                    Checkbox(
-                        value: showDepth,
-                        onChanged: (value) => setState(() {
-                              showDepth = value!;
-                            })),
-                  ],
-                ),
-                verticalSpace,
-                Slider(
-                  value: depthAlpha,
-                  onChanged: (value) => setState(() {
-                    depthAlpha = value;
-                  }),
-                ),
-                verticalSpace,
-                TextFormField(
-                  controller: hFovController,
-                  decoration: const InputDecoration(
-                    labelText: 'Horizontal FOV',
-                  ),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r"[0-9.]"))
-                  ],
-                ),
-                verticalSpace,
-                TextFormField(
-                  controller: vFovController,
-                  decoration: const InputDecoration(
-                    labelText: 'Vertical FOV',
-                  ),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r"[0-9.]"))
-                  ],
-                ),
-                verticalSpace,
-                TextField(
-                  decoration: const InputDecoration(
-                    labelText: 'Reference length (cm)',
-                  ),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r"[0-9.]"))
-                  ],
-                  onChanged: (value) {
-                    if (double.tryParse(value) != null) {
-                      setState(() {
-                        refLength = double.tryParse(value)! / 100;
-                      });
-                    }
-                  },
-                ),
-                verticalSpace,
-                ElevatedButton(
-                    onPressed: solveFov, child: const Text("Solve For FOV")),
-                verticalSpace,
-                isSaving
-                    ? const CircularProgressIndicator()
-                    : ElevatedButton(
-                        onPressed: () async {
-                          setState(() {
-                            isSaving = true;
-                          });
-                          final bytes = await captureController.capture();
-
-                          await WebImageDownloader.downloadImageFromUInt8List(
-                              uInt8List: bytes!, name: 'image');
-
-                          setState(() {
-                            isSaving = false;
-                          });
-                        },
-                        child: const Text('Save'),
-                      ),
-                verticalSpace,
-                const Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Pixel',
-                        textAlign: TextAlign.end,
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        'w/o LiDAR',
-                        textAlign: TextAlign.end,
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        'LiDAR',
-                        textAlign: TextAlign.end,
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        'Angle',
-                        textAlign: TextAlign.end,
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    SizedBox(width: 40),
-                  ],
-                ),
-                if (image != null)
-                  Column(
+                Expanded(
+                  child: ListView(
                     children: [
-                      [refPoint1, refPoint2],
-                      ...points
-                    ].map(
-                      (e) {
-                        return Row(
+                      Row(
+                        children: [
+                          const Text('Show depth'),
+                          Checkbox(
+                              value: showDepth,
+                              onChanged: (value) => setState(() {
+                                    showDepth = value!;
+                                  })),
+                        ],
+                      ),
+                      Slider(
+                        value: depthAlpha,
+                        onChanged: (value) => setState(() {
+                          depthAlpha = value;
+                        }),
+                      ),
+                      TextFormField(
+                        controller: hFovController,
+                        decoration: const InputDecoration(
+                          labelText: 'Horizontal FOV',
+                        ),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp(r"[0-9.]"))
+                        ],
+                      ),
+                      verticalSpace,
+                      TextFormField(
+                        controller: vFovController,
+                        decoration: const InputDecoration(
+                          labelText: 'Vertical FOV',
+                        ),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp(r"[0-9.]"))
+                        ],
+                      ),
+                      verticalSpace,
+                      TextField(
+                        decoration: const InputDecoration(
+                          labelText: 'Reference length (cm)',
+                        ),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp(r"[0-9.]"))
+                        ],
+                        onChanged: (value) {
+                          if (double.tryParse(value) != null) {
+                            setState(() {
+                              refLength = double.tryParse(value)! / 100;
+                            });
+                          }
+                        },
+                      ),
+                      verticalSpace,
+                      ElevatedButton(
+                          onPressed: solveFov,
+                          child: const Text("Solve For FOV")),
+                      verticalSpace,
+                      isSaving
+                          ? const CircularProgressIndicator()
+                          : ElevatedButton(
+                              onPressed: () async {
+                                setState(() {
+                                  isSaving = true;
+                                });
+                                final bytes = await captureController.capture();
+
+                                await WebImageDownloader
+                                    .downloadImageFromUInt8List(
+                                        uInt8List: bytes!, name: 'image');
+
+                                setState(() {
+                                  isSaving = false;
+                                });
+                              },
+                              child: const Text('Save'),
+                            ),
+                      verticalSpace,
+                      const Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Pixel',
+                              textAlign: TextAlign.end,
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              'w/o LiDAR',
+                              textAlign: TextAlign.end,
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              'LiDAR',
+                              textAlign: TextAlign.end,
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              'Angle',
+                              textAlign: TextAlign.end,
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          SizedBox(width: 40),
+                        ],
+                      ),
+                      if (image != null)
+                        Column(
                           children: [
-                            Expanded(
-                              child: Text(
-                                distancePixel(e[0], e[1]).toStringAsFixed(1),
-                                textAlign: TextAlign.end,
-                              ),
-                            ),
-                            Expanded(
-                              child: Text(
-                                distance(e[0], e[1]).toStringAsFixed(1),
-                                textAlign: TextAlign.end,
-                              ),
-                            ),
-                            depthData == null || width == null
-                                ? const Spacer()
-                                : Expanded(
+                            [refPoint1, refPoint2],
+                            ...points
+                          ].map(
+                            (e) {
+                              return Row(
+                                children: [
+                                  Expanded(
                                     child: Text(
-                                      distanceLidar(e[0], e[1])
-                                          .toStringAsFixed(3),
-                                      textAlign: TextAlign.end,
-                                    ),
-                                  ),
-                            depthData == null || width == null
-                                ? const Spacer()
-                                : Expanded(
-                                    child: Text(
-                                      (angleBetweenTwoPoints(e[0], e[1]) *
-                                              180 /
-                                              pi)
+                                      distancePixel(e[0], e[1])
                                           .toStringAsFixed(1),
                                       textAlign: TextAlign.end,
                                     ),
                                   ),
-                            IconButton(
-                              onPressed: () => setState(() {
-                                points.remove(e);
-                              }),
-                              icon: const Icon(Icons.delete),
-                            )
-                          ],
-                        );
-                      },
-                    ).toList(),
+                                  Expanded(
+                                    child: Text(
+                                      distance(e[0], e[1]).toStringAsFixed(1),
+                                      textAlign: TextAlign.end,
+                                    ),
+                                  ),
+                                  depthData == null || width == null
+                                      ? const Spacer()
+                                      : Expanded(
+                                          child: Text(
+                                            distanceLidar(e[0], e[1])
+                                                .toStringAsFixed(3),
+                                            textAlign: TextAlign.end,
+                                          ),
+                                        ),
+                                  depthData == null || width == null
+                                      ? const Spacer()
+                                      : Expanded(
+                                          child: Text(
+                                            (angleBetweenTwoPoints(e[0], e[1]) *
+                                                    180 /
+                                                    pi)
+                                                .toStringAsFixed(1),
+                                            textAlign: TextAlign.end,
+                                          ),
+                                        ),
+                                  IconButton(
+                                    onPressed: () => setState(() {
+                                      points.remove(e);
+                                    }),
+                                    icon: const Icon(Icons.delete),
+                                  )
+                                ],
+                              );
+                            },
+                          ).toList(),
+                        ),
+                      verticalSpace,
+                      ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            points.add(
+                                [const Offset(50, 50), const Offset(100, 100)]);
+                          });
+                        },
+                        child: const Text('Add Line'),
+                      ),
+                    ],
                   ),
-                verticalSpace,
-                ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      points
-                          .add([const Offset(50, 50), const Offset(100, 100)]);
-                    });
-                  },
-                  child: const Text('Add Line'),
                 ),
               ],
             ),
