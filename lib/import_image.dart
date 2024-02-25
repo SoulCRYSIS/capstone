@@ -25,6 +25,7 @@ class _ImportImageState extends State<ImportImage> {
   double zoom = 1;
   List<List<double>>? depthData;
   bool showDepth = false;
+  double depthAlpha = 0.8;
   double imageToDepthRatio = 1;
 
   final hFovController = TextEditingController(text: "90");
@@ -174,9 +175,12 @@ class _ImportImageState extends State<ImportImage> {
                               );
                             }),
                             if (depthData != null && showDepth)
-                              DepthImage(
-                                depthData!,
-                                imageToDepthRatio,
+                              Opacity(
+                                opacity: depthAlpha,
+                                child: DepthImage(
+                                  depthData!,
+                                  imageToDepthRatio,
+                                ),
                               ),
                             CustomPaint(
                               painter: Line(
@@ -427,6 +431,13 @@ class _ImportImageState extends State<ImportImage> {
                               showDepth = value!;
                             })),
                   ],
+                ),
+                verticalSpace,
+                Slider(
+                  value: depthAlpha,
+                  onChanged: (value) => setState(() {
+                    depthAlpha = value;
+                  }),
                 ),
                 verticalSpace,
                 TextFormField(
@@ -699,52 +710,70 @@ class ImagePicker extends StatelessWidget {
   }
 }
 
-class HeatMapPainter extends CustomPainter {
-  final List<List<double>> data;
-  final double cellSize;
-  late final double maxValue;
-  late final double minValue;
-  late final double range;
-
-  HeatMapPainter({required this.data, this.cellSize = 1}) {
-    maxValue = data.expand((row) => row).reduce(max);
-    minValue = data.expand((row) => row).reduce(min);
-    range = maxValue - minValue;
-  }
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    for (int i = 0; i < data.length; i++) {
-      for (int j = 0; j < data[i].length; j++) {
-        final paint = Paint()
-          ..color = _getColorFromValue((data[i][j] - minValue) / range);
-        final rect =
-            Rect.fromLTWH(j * cellSize, i * cellSize, cellSize, cellSize);
-        canvas.drawRect(rect, paint);
-      }
-    }
-  }
-
-  Color _getColorFromValue(double value) {
-    var h = (1.0 - value) * 360;
-    return HSLColor.fromAHSL(0.8, h, 1, 0.5).toColor();
-  }
-
-  @override
-  bool shouldRepaint(CustomPainter oldDelegate) => false;
-}
-
-class DepthImage extends StatelessWidget {
+class DepthImage extends StatefulWidget {
   final List<List<double>> data;
   final double cellSize;
 
   const DepthImage(this.data, this.cellSize, {super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      // assuming all rows have equal length
-      painter: HeatMapPainter(data: data, cellSize: cellSize),
+  State<DepthImage> createState() => _DepthImageState();
+}
+
+class _DepthImageState extends State<DepthImage> {
+  Image? image;
+
+  late final width = widget.data.first.length;
+  late final height = widget.data.length;
+  late final maxValue = widget.data.expand((row) => row).reduce(max);
+  late final minValue = widget.data.expand((row) => row).reduce(min);
+  late final range = maxValue - minValue;
+
+  Color _getColorFromValue(double value) {
+    var h = (1.0 - value) * 360;
+    return HSLColor.fromAHSL(1, h, 1, 0.5).toColor();
+  }
+
+  @override
+  void initState() {
+    Uint8List pixels = Uint8List(width * height * 4);
+    var index = 0;
+    for (int i = 0; i < height; i++) {
+      for (int j = 0; j < width; j++) {
+        final color =
+            _getColorFromValue((widget.data[i][j] - minValue) / range);
+        pixels[index++] = color.red;
+        pixels[index++] = color.green;
+        pixels[index++] = color.blue;
+        pixels[index++] = color.alpha;
+      }
+    }
+
+    ui.decodeImageFromPixels(
+      pixels,
+      width,
+      height,
+      ui.PixelFormat.rgba8888,
+      (result) async {
+        final pngBytes =
+            await result.toByteData(format: ui.ImageByteFormat.png);
+
+        setState(() {
+          image = Image.memory(
+            Uint8List.view(pngBytes!.buffer),
+            filterQuality: FilterQuality.high,
+            scale: 1 / widget.cellSize,
+          );
+        });
+      },
+      targetHeight: height,
+      targetWidth: width,
     );
+    super.initState();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return image == null ? const CircularProgressIndicator() : image!;
   }
 }
