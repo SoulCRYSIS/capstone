@@ -219,18 +219,22 @@ class _ImportImageState extends State<ImportImage> {
                             ),
                             if (depthData != null)
                               Positioned(
-                                left: refPoint1.dx - 10,
+                                left: refPoint1.dx - 110,
                                 top: refPoint1.dy - 10,
-                                child: StrokeText(
-                                  strokeWidth: 2,
-                                  text:
-                                      '${(distanceAtPoint(refPoint1) * 100).toStringAsFixed(1)} cm',
+                                child: Container(
+                                  width: 100,
+                                  alignment: Alignment.centerRight,
+                                  child: StrokeText(
+                                    strokeWidth: 2,
+                                    text:
+                                        '${(distanceAtPoint(refPoint1) * 100).toStringAsFixed(1)} cm',
+                                  ),
                                 ),
                               ),
                             if (depthData != null)
                               Positioned(
-                                left: refPoint2.dx,
-                                top: refPoint2.dy,
+                                left: refPoint2.dx + 10,
+                                top: refPoint2.dy - 10,
                                 child: StrokeText(
                                   strokeWidth: 2,
                                   text:
@@ -242,16 +246,15 @@ class _ImportImageState extends State<ImportImage> {
                               top: refPoint1.dy - 5,
                               child: Draggable(
                                 feedback: const CirclePoint(),
-                                onDragEnd: (dragDetails) {
+                                onDragUpdate: (dragDetails) {
                                   RenderBox box = stackKey.currentContext!
                                       .findRenderObject() as RenderBox;
-                                  Offset localOffset =
-                                      box.globalToLocal(dragDetails.offset);
+                                  Offset localOffset = box.globalToLocal(
+                                      dragDetails.globalPosition);
                                   final imageSize =
                                       imageKey.currentContext!.size!;
                                   setState(() {
-                                    var newPoint = (localOffset +
-                                        const Offset(5, 5) / zoom);
+                                    var newPoint = localOffset;
                                     refPoint1 = Offset(
                                         newPoint.dx.clamp(0.0, imageSize.width),
                                         newPoint.dy
@@ -266,18 +269,17 @@ class _ImportImageState extends State<ImportImage> {
                               top: refPoint2.dy - 5,
                               child: Draggable(
                                 feedback: const CirclePoint(),
-                                onDragEnd: (dragDetails) {
+                                onDragUpdate: (dragDetails) {
                                   RenderBox box = stackKey.currentContext!
                                       .findRenderObject() as RenderBox;
-                                  Offset localOffset =
-                                      box.globalToLocal(dragDetails.offset);
+                                  Offset localOffset = box.globalToLocal(
+                                      dragDetails.globalPosition);
 
                                   final imageSize =
                                       imageKey.currentContext!.size!;
 
                                   setState(() {
-                                    var newPoint = (localOffset +
-                                        const Offset(5, 5) / zoom);
+                                    var newPoint = localOffset;
                                     refPoint2 = Offset(
                                         newPoint.dx.clamp(0.0, imageSize.width),
                                         newPoint.dy
@@ -333,16 +335,15 @@ class _ImportImageState extends State<ImportImage> {
                                 top: point[0].dy - 5,
                                 child: Draggable(
                                   feedback: const CirclePoint(),
-                                  onDragEnd: (dragDetails) {
+                                  onDragUpdate: (dragDetails) {
                                     RenderBox box = stackKey.currentContext!
                                         .findRenderObject() as RenderBox;
-                                    Offset localOffset =
-                                        box.globalToLocal(dragDetails.offset);
+                                    Offset localOffset = box.globalToLocal(
+                                        dragDetails.globalPosition);
                                     final imageSize =
                                         imageKey.currentContext!.size!;
                                     setState(() {
-                                      var newPoint = (localOffset +
-                                          const Offset(5, 5) / zoom);
+                                      var newPoint = localOffset;
                                       point[0] = Offset(
                                           newPoint.dx
                                               .clamp(0.0, imageSize.width),
@@ -359,14 +360,13 @@ class _ImportImageState extends State<ImportImage> {
                                   top: point[1].dy - 5,
                                   child: Draggable(
                                     feedback: const CirclePoint(),
-                                    onDragEnd: (dragDetails) {
+                                    onDragUpdate: (dragDetails) {
                                       RenderBox box = stackKey.currentContext!
                                           .findRenderObject() as RenderBox;
-                                      Offset localOffset =
-                                          box.globalToLocal(dragDetails.offset);
+                                      Offset localOffset = box.globalToLocal(
+                                          dragDetails.globalPosition);
                                       setState(() {
-                                        var newPoint = (localOffset +
-                                            const Offset(5, 5) / zoom);
+                                        var newPoint = localOffset;
                                         final imageSize =
                                             imageKey.currentContext!.size!;
                                         point[1] = Offset(
@@ -540,13 +540,6 @@ class _ImportImageState extends State<ImportImage> {
                           ),
                           Expanded(
                             child: Text(
-                              'w/o LiDAR',
-                              textAlign: TextAlign.end,
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                          Expanded(
-                            child: Text(
                               'LiDAR',
                               textAlign: TextAlign.end,
                               style: TextStyle(fontWeight: FontWeight.bold),
@@ -575,12 +568,6 @@ class _ImportImageState extends State<ImportImage> {
                                     child: Text(
                                       distancePixel(e[0], e[1])
                                           .toStringAsFixed(1),
-                                      textAlign: TextAlign.end,
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: Text(
-                                      distance(e[0], e[1]).toStringAsFixed(1),
                                       textAlign: TextAlign.end,
                                     ),
                                   ),
