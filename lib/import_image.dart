@@ -2,10 +2,8 @@ import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
 import 'package:image_downloader_web/image_downloader_web.dart';
 import 'package:image_size_getter/image_size_getter.dart' as image_size_getter;
 import 'package:stroke_text/stroke_text.dart';
@@ -144,24 +142,21 @@ class _ImportImageState extends State<ImportImage> {
       body: Row(
         children: [
           Expanded(
-              child: Center(
-            child: image == null
-                ? const Text('unselected')
-                : InteractiveViewer(
-                    transformationController: transformationController,
-                    onInteractionUpdate: (details) {
-                      setState(() {
-                        zoom =
-                            transformationController.value.getMaxScaleOnAxis();
-                      });
-                    },
-                    maxScale: 20,
-                    child: WidgetsToImage(
-                        controller: captureController,
-                        child: Stack(
-                          key: stackKey,
-                          children: [
-                            GestureDetector(
+            child: Center(
+                child: image == null
+                    ? const Text('unselected')
+                    : InteractiveViewer(
+                        transformationController: transformationController,
+                        onInteractionUpdate: (details) {
+                          setState(() {
+                            zoom = transformationController.value
+                                .getMaxScaleOnAxis();
+                          });
+                        },
+                        maxScale: 20,
+                        child: WidgetsToImage(
+                          controller: captureController,
+                          child: GestureDetector(
                               onTapDown: (details) {
                                 if (!isAdding) {
                                   return;
@@ -178,233 +173,253 @@ class _ImportImageState extends State<ImportImage> {
                                   });
                                 }
                               },
-                              child: LayoutBuilder(
-                                  builder: (context, constraints) {
-                                if (depthData != null) {
-                                  WidgetsBinding.instance
-                                      .addPostFrameCallback((_) {
-                                    final imageSize =
-                                        imageKey.currentContext!.size!;
-                                    setState(() {
-                                      imageToDepthRatio =
-                                          imageSize.height / depthData!.length;
-                                      width = imageSize.width;
-                                      height = imageSize.height;
-                                    });
-                                  });
-                                }
-                                return Image.memory(
-                                  key: imageKey,
-                                  image!,
-                                );
-                              }),
-                            ),
-                            if (depthData != null && showDepth)
-                              Opacity(
-                                opacity: depthAlpha,
-                                child: DepthImage(
-                                  depthData!,
-                                  imageToDepthRatio,
-                                ),
-                              ),
-                            CustomPaint(
-                              painter: Line(
-                                refPoint1,
-                                refPoint2,
-                              ),
-                            ),
-                            CustomPaint(
-                              painter: Lines(
-                                  points.where((e) => e.length == 2).toList()),
-                            ),
-                            if (depthData != null)
-                              Positioned(
-                                left: refPoint1.dx - 110,
-                                top: refPoint1.dy - 10,
-                                child: Container(
-                                  width: 100,
-                                  alignment: Alignment.centerRight,
-                                  child: StrokeText(
-                                    strokeWidth: 2,
-                                    text:
-                                        '${(distanceAtPoint(refPoint1) * 100).toStringAsFixed(1)} cm',
-                                  ),
-                                ),
-                              ),
-                            if (depthData != null)
-                              Positioned(
-                                left: refPoint2.dx + 10,
-                                top: refPoint2.dy - 10,
-                                child: StrokeText(
-                                  strokeWidth: 2,
-                                  text:
-                                      '${(distanceAtPoint(refPoint2) * 100).toStringAsFixed(1)} cm',
-                                ),
-                              ),
-                            Positioned(
-                              left: refPoint1.dx - 5,
-                              top: refPoint1.dy - 5,
-                              child: Draggable(
-                                feedback: const CirclePoint(),
-                                onDragUpdate: (dragDetails) {
-                                  RenderBox box = stackKey.currentContext!
-                                      .findRenderObject() as RenderBox;
-                                  Offset localOffset = box.globalToLocal(
-                                      dragDetails.globalPosition);
-                                  final imageSize =
-                                      imageKey.currentContext!.size!;
-                                  setState(() {
-                                    var newPoint = localOffset;
-                                    refPoint1 = Offset(
-                                        newPoint.dx.clamp(0.0, imageSize.width),
-                                        newPoint.dy
-                                            .clamp(0.0, imageSize.height));
-                                  });
-                                },
-                                child: const CirclePoint(),
-                              ),
-                            ),
-                            Positioned(
-                              left: refPoint2.dx - 5,
-                              top: refPoint2.dy - 5,
-                              child: Draggable(
-                                feedback: const CirclePoint(),
-                                onDragUpdate: (dragDetails) {
-                                  RenderBox box = stackKey.currentContext!
-                                      .findRenderObject() as RenderBox;
-                                  Offset localOffset = box.globalToLocal(
-                                      dragDetails.globalPosition);
-
-                                  final imageSize =
-                                      imageKey.currentContext!.size!;
-
-                                  setState(() {
-                                    var newPoint = localOffset;
-                                    refPoint2 = Offset(
-                                        newPoint.dx.clamp(0.0, imageSize.width),
-                                        newPoint.dy
-                                            .clamp(0.0, imageSize.height));
-                                  });
-                                },
-                                child: const CirclePoint(),
-                              ),
-                            ),
-                            Positioned(
-                              left: refPoint1.dx,
-                              top: refPoint1.dy,
-                              child: Transform.rotate(
-                                alignment: Alignment.topLeft,
-                                angle: atan2(refPoint2.dy - refPoint1.dy,
-                                    refPoint2.dx - refPoint1.dx),
-                                child: Container(
-                                  alignment: Alignment.center,
-                                  width: distancePixel(refPoint1, refPoint2),
-                                  child: StrokeText(
-                                    strokeWidth: 2,
-                                    text: depthData == null || width == null
-                                        ? distance(refPoint1, refPoint2)
-                                            .toStringAsFixed(1)
-                                        : '${(distanceLidar(refPoint1, refPoint2) * 100).toStringAsFixed(1)} cm (${(angleBetweenTwoPoints(refPoint1, refPoint2) * 180 / pi).toStringAsFixed(1)}ํ)',
-                                  ),
-                                ),
-                              ),
-                            ),
-                            for (List<Offset> point in points) ...[
-                              if (depthData != null)
-                                Positioned(
-                                  left: point[0].dx - 10,
-                                  top: point[0].dy - 10,
-                                  child: StrokeText(
-                                    strokeWidth: 2,
-                                    text:
-                                        '${(distanceAtPoint(point[0]) * 100).toStringAsFixed(1)} cm',
-                                  ),
-                                ),
-                              if (depthData != null && point.length == 2)
-                                Positioned(
-                                  left: point[1].dx,
-                                  top: point[1].dy,
-                                  child: StrokeText(
-                                    strokeWidth: 2,
-                                    text:
-                                        '${(distanceAtPoint(point[1]) * 100).toStringAsFixed(1)} cm',
-                                  ),
-                                ),
-                              Positioned(
-                                left: point[0].dx - 5,
-                                top: point[0].dy - 5,
-                                child: Draggable(
-                                  feedback: const CirclePoint(),
-                                  onDragUpdate: (dragDetails) {
-                                    RenderBox box = stackKey.currentContext!
-                                        .findRenderObject() as RenderBox;
-                                    Offset localOffset = box.globalToLocal(
-                                        dragDetails.globalPosition);
-                                    final imageSize =
-                                        imageKey.currentContext!.size!;
-                                    setState(() {
-                                      var newPoint = localOffset;
-                                      point[0] = Offset(
-                                          newPoint.dx
-                                              .clamp(0.0, imageSize.width),
-                                          newPoint.dy
-                                              .clamp(0.0, imageSize.height));
-                                    });
-                                  },
-                                  child: const CirclePoint(),
-                                ),
-                              ),
-                              if (point.length == 2)
-                                Positioned(
-                                  left: point[1].dx - 5,
-                                  top: point[1].dy - 5,
-                                  child: Draggable(
-                                    feedback: const CirclePoint(),
-                                    onDragUpdate: (dragDetails) {
-                                      RenderBox box = stackKey.currentContext!
-                                          .findRenderObject() as RenderBox;
-                                      Offset localOffset = box.globalToLocal(
-                                          dragDetails.globalPosition);
-                                      setState(() {
-                                        var newPoint = localOffset;
+                              child: Stack(
+                                key: stackKey,
+                                children: [
+                                  LayoutBuilder(
+                                      builder: (context, constraints) {
+                                    if (depthData != null) {
+                                      WidgetsBinding.instance
+                                          .addPostFrameCallback((_) {
                                         final imageSize =
                                             imageKey.currentContext!.size!;
-                                        point[1] = Offset(
-                                            newPoint.dx
-                                                .clamp(0.0, imageSize.width),
-                                            newPoint.dy
-                                                .clamp(0.0, imageSize.height));
+                                        setState(() {
+                                          imageToDepthRatio = imageSize.height /
+                                              depthData!.length;
+                                          width = imageSize.width;
+                                          height = imageSize.height;
+                                        });
                                       });
-                                    },
-                                    child: const CirclePoint(),
+                                    }
+                                    return Image.memory(
+                                      key: imageKey,
+                                      image!,
+                                    );
+                                  }),
+                                  if (depthData != null && showDepth)
+                                    Opacity(
+                                      opacity: depthAlpha,
+                                      child: DepthImage(
+                                        depthData!,
+                                        imageToDepthRatio,
+                                      ),
+                                    ),
+                                  CustomPaint(
+                                    painter: Line(
+                                      refPoint1,
+                                      refPoint2,
+                                    ),
                                   ),
-                                ),
-                              if (point.length == 2)
-                                Positioned(
-                                  left: point[0].dx,
-                                  top: point[0].dy,
-                                  child: Transform.rotate(
-                                    alignment: Alignment.topLeft,
-                                    angle: atan2(point[1].dy - point[0].dy,
-                                        point[1].dx - point[0].dx),
-                                    child: Container(
-                                      alignment: Alignment.center,
-                                      width: distancePixel(point[0], point[1]),
+                                  CustomPaint(
+                                    painter: Lines(points
+                                        .where((e) => e.length == 2)
+                                        .toList()),
+                                  ),
+                                  if (depthData != null)
+                                    Positioned(
+                                      left: refPoint1.dx - 110,
+                                      top: refPoint1.dy - 10,
+                                      child: Container(
+                                        width: 100,
+                                        alignment: Alignment.centerRight,
+                                        child: StrokeText(
+                                          strokeWidth: 2,
+                                          text:
+                                              '${(distanceAtPoint(refPoint1) * 100).toStringAsFixed(1)} cm',
+                                        ),
+                                      ),
+                                    ),
+                                  if (depthData != null)
+                                    Positioned(
+                                      left: refPoint2.dx + 10,
+                                      top: refPoint2.dy - 10,
                                       child: StrokeText(
                                         strokeWidth: 2,
-                                        text: depthData == null || width == null
-                                            ? distance(point[0], point[1])
-                                                .toStringAsFixed(1)
-                                            : '${(distanceLidar(point[0], point[1]) * 100).toStringAsFixed(1)} cm (${(angleBetweenTwoPoints(point[0], point[1]) * 180 / pi).toStringAsFixed(1)}ํ)',
+                                        text:
+                                            '${(distanceAtPoint(refPoint2) * 100).toStringAsFixed(1)} cm',
+                                      ),
+                                    ),
+                                  Positioned(
+                                    left: refPoint1.dx - 5,
+                                    top: refPoint1.dy - 5,
+                                    child: Draggable(
+                                      feedback: const CirclePoint(),
+                                      onDragUpdate: (dragDetails) {
+                                        RenderBox box = stackKey.currentContext!
+                                            .findRenderObject() as RenderBox;
+                                        Offset localOffset = box.globalToLocal(
+                                            dragDetails.globalPosition);
+                                        final imageSize =
+                                            imageKey.currentContext!.size!;
+                                        setState(() {
+                                          var newPoint = localOffset;
+                                          refPoint1 = Offset(
+                                              newPoint.dx
+                                                  .clamp(0.0, imageSize.width),
+                                              newPoint.dy.clamp(
+                                                  0.0, imageSize.height));
+                                        });
+                                      },
+                                      child: const CirclePoint(),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    left: refPoint2.dx - 5,
+                                    top: refPoint2.dy - 5,
+                                    child: Draggable(
+                                      feedback: const CirclePoint(),
+                                      onDragUpdate: (dragDetails) {
+                                        RenderBox box = stackKey.currentContext!
+                                            .findRenderObject() as RenderBox;
+                                        Offset localOffset = box.globalToLocal(
+                                            dragDetails.globalPosition);
+
+                                        final imageSize =
+                                            imageKey.currentContext!.size!;
+
+                                        setState(() {
+                                          var newPoint = localOffset;
+                                          refPoint2 = Offset(
+                                              newPoint.dx
+                                                  .clamp(0.0, imageSize.width),
+                                              newPoint.dy.clamp(
+                                                  0.0, imageSize.height));
+                                        });
+                                      },
+                                      child: const CirclePoint(),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    left: refPoint1.dx,
+                                    top: refPoint1.dy,
+                                    child: Transform.rotate(
+                                      alignment: Alignment.topLeft,
+                                      angle: atan2(refPoint2.dy - refPoint1.dy,
+                                          refPoint2.dx - refPoint1.dx),
+                                      child: Container(
+                                        alignment: Alignment.center,
+                                        width:
+                                            distancePixel(refPoint1, refPoint2),
+                                        child: StrokeText(
+                                          strokeWidth: 2,
+                                          text: depthData == null ||
+                                                  width == null
+                                              ? distance(refPoint1, refPoint2)
+                                                  .toStringAsFixed(1)
+                                              : '${(distanceLidar(refPoint1, refPoint2) * 100).toStringAsFixed(1)} cm (${(angleBetweenTwoPoints(refPoint1, refPoint2) * 180 / pi).toStringAsFixed(1)}ํ)',
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                            ]
-                          ],
-                        )),
-                  ),
-          )),
+                                  for (List<Offset> point in points) ...[
+                                    if (depthData != null)
+                                      Positioned(
+                                        left: point[0].dx - 110,
+                                        top: point[0].dy - 10,
+                                        child: Container(
+                                          width: 100,
+                                          alignment: Alignment.centerRight,
+                                          child: StrokeText(
+                                            strokeWidth: 2,
+                                            text:
+                                                '${(distanceAtPoint(point[0]) * 100).toStringAsFixed(1)} cm',
+                                          ),
+                                        ),
+                                      ),
+                                    if (depthData != null && point.length == 2)
+                                      Positioned(
+                                        left: point[1].dx + 10,
+                                        top: point[1].dy - 10,
+                                        child: StrokeText(
+                                          strokeWidth: 2,
+                                          text:
+                                              '${(distanceAtPoint(point[1]) * 100).toStringAsFixed(1)} cm',
+                                        ),
+                                      ),
+                                    Positioned(
+                                      left: point[0].dx - 5,
+                                      top: point[0].dy - 5,
+                                      child: Draggable(
+                                        feedback: const CirclePoint(),
+                                        onDragUpdate: (dragDetails) {
+                                          RenderBox box = stackKey
+                                              .currentContext!
+                                              .findRenderObject() as RenderBox;
+                                          Offset localOffset =
+                                              box.globalToLocal(
+                                                  dragDetails.globalPosition);
+                                          final imageSize =
+                                              imageKey.currentContext!.size!;
+                                          setState(() {
+                                            var newPoint = localOffset;
+                                            point[0] = Offset(
+                                                newPoint.dx.clamp(
+                                                    0.0, imageSize.width),
+                                                newPoint.dy.clamp(
+                                                    0.0, imageSize.height));
+                                          });
+                                        },
+                                        child: const CirclePoint(),
+                                      ),
+                                    ),
+                                    if (point.length == 2)
+                                      Positioned(
+                                        left: point[1].dx - 5,
+                                        top: point[1].dy - 5,
+                                        child: Draggable(
+                                          feedback: const CirclePoint(),
+                                          onDragUpdate: (dragDetails) {
+                                            RenderBox box = stackKey
+                                                    .currentContext!
+                                                    .findRenderObject()
+                                                as RenderBox;
+                                            Offset localOffset =
+                                                box.globalToLocal(
+                                                    dragDetails.globalPosition);
+                                            setState(() {
+                                              var newPoint = localOffset;
+                                              final imageSize = imageKey
+                                                  .currentContext!.size!;
+                                              point[1] = Offset(
+                                                  newPoint.dx.clamp(
+                                                      0.0, imageSize.width),
+                                                  newPoint.dy.clamp(
+                                                      0.0, imageSize.height));
+                                            });
+                                          },
+                                          child: const CirclePoint(),
+                                        ),
+                                      ),
+                                    if (point.length == 2)
+                                      Positioned(
+                                        left: point[0].dx,
+                                        top: point[0].dy,
+                                        child: Transform.rotate(
+                                          alignment: Alignment.topLeft,
+                                          angle: atan2(
+                                              point[1].dy - point[0].dy,
+                                              point[1].dx - point[0].dx),
+                                          child: Container(
+                                            alignment: Alignment.center,
+                                            width: distancePixel(
+                                                point[0], point[1]),
+                                            child: StrokeText(
+                                              strokeWidth: 2,
+                                              text: depthData == null ||
+                                                      width == null
+                                                  ? distance(point[0], point[1])
+                                                      .toStringAsFixed(1)
+                                                  : '${(distanceLidar(point[0], point[1]) * 100).toStringAsFixed(1)} cm (${(angleBetweenTwoPoints(point[0], point[1]) * 180 / pi).toStringAsFixed(1)}ํ)',
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ]
+                                ],
+                              )),
+                        ),
+                      )),
+          ),
           const VerticalDivider(),
           Container(
             width: 300,
